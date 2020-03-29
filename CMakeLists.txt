@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8.12)
 
+cmake_policy(SET CMP0054 NEW)
+
 if(CMAKE_EXECUTABLE_SUFFIX)
   set(CMAKE_EXECUTABLE_SUFFIX_TMP ${CMAKE_EXECUTABLE_SUFFIX})
 endif()
@@ -171,6 +173,8 @@ option(WITH_SIMD "Include SIMD extensions, if available for this platform" TRUE)
 boolean_number(WITH_SIMD)
 option(WITH_TURBOJPEG "Include the TurboJPEG API library and associated test programs" TRUE)
 boolean_number(WITH_TURBOJPEG)
+option(JPEG_INSTALL "Generate install scripts" FALSE)
+boolean_number(JPEG_INSTALL)
 
 macro(report_option var desc)
   if(${var})
@@ -1346,88 +1350,89 @@ endif()
 ###############################################################################
 # INSTALLATION
 ###############################################################################
+if(JPEG_INSTALL)
+  set(EXE ${CMAKE_EXECUTABLE_SUFFIX})
 
-set(EXE ${CMAKE_EXECUTABLE_SUFFIX})
-
-if(WITH_TURBOJPEG)
-  if(ENABLE_SHARED)
-    install(TARGETS turbojpeg tjbench
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    if(NOT CMAKE_VERSION VERSION_LESS "3.1" AND MSVC AND
-      CMAKE_C_LINKER_SUPPORTS_PDB)
-      install(FILES "$<TARGET_PDB_FILE:turbojpeg>"
-        DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
+  if(WITH_TURBOJPEG)
+    if(ENABLE_SHARED)
+      install(TARGETS turbojpeg tjbench
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+      if(NOT CMAKE_VERSION VERSION_LESS "3.1" AND MSVC AND
+        CMAKE_C_LINKER_SUPPORTS_PDB)
+        install(FILES "$<TARGET_PDB_FILE:turbojpeg>"
+          DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
+      endif()
     endif()
+    if(ENABLE_STATIC)
+      install(TARGETS turbojpeg-static ARCHIVE
+        DESTINATION ${CMAKE_INSTALL_LIBDIR})
+      if(NOT ENABLE_SHARED)
+        if(MSVC_IDE OR XCODE)
+          set(DIR "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}")
+        else()
+          set(DIR ${CMAKE_CURRENT_BINARY_DIR})
+        endif()
+        install(PROGRAMS ${DIR}/tjbench-static${EXE}
+          DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME tjbench${EXE})
+      endif()
+    endif()
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/turbojpeg.h
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
   endif()
+
   if(ENABLE_STATIC)
-    install(TARGETS turbojpeg-static ARCHIVE
-      DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(TARGETS jpeg-static ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
     if(NOT ENABLE_SHARED)
       if(MSVC_IDE OR XCODE)
         set(DIR "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}")
       else()
         set(DIR ${CMAKE_CURRENT_BINARY_DIR})
       endif()
-      install(PROGRAMS ${DIR}/tjbench-static${EXE}
-        DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME tjbench${EXE})
+      install(PROGRAMS ${DIR}/cjpeg-static${EXE}
+        DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME cjpeg${EXE})
+      install(PROGRAMS ${DIR}/djpeg-static${EXE}
+        DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME djpeg${EXE})
+      install(PROGRAMS ${DIR}/jpegtran-static${EXE}
+        DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME jpegtran${EXE})
     endif()
   endif()
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/turbojpeg.h
+
+  install(TARGETS rdjpgcom wrjpgcom RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.ijg
+    ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${CMAKE_CURRENT_SOURCE_DIR}/example.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/tjexample.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/libjpeg.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/structure.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/usage.txt ${CMAKE_CURRENT_SOURCE_DIR}/wizard.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+  if(WITH_JAVA)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/java/TJExample.java
+      DESTINATION ${CMAKE_INSTALL_DOCDIR})
+  endif()
+
+  if(UNIX OR MINGW)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cjpeg.1
+      ${CMAKE_CURRENT_SOURCE_DIR}/djpeg.1 ${CMAKE_CURRENT_SOURCE_DIR}/jpegtran.1
+      ${CMAKE_CURRENT_SOURCE_DIR}/rdjpgcom.1
+      ${CMAKE_CURRENT_SOURCE_DIR}/wrjpgcom.1
+      DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+  endif()
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pkgscripts/libjpeg.pc
+    ${CMAKE_CURRENT_BINARY_DIR}/pkgscripts/libturbojpeg.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/jconfig.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/jerror.h ${CMAKE_CURRENT_SOURCE_DIR}/jmorecfg.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/jpeglib.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-endif()
 
-if(ENABLE_STATIC)
-  install(TARGETS jpeg-static ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-  if(NOT ENABLE_SHARED)
-    if(MSVC_IDE OR XCODE)
-      set(DIR "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}")
-    else()
-      set(DIR ${CMAKE_CURRENT_BINARY_DIR})
-    endif()
-    install(PROGRAMS ${DIR}/cjpeg-static${EXE}
-      DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME cjpeg${EXE})
-    install(PROGRAMS ${DIR}/djpeg-static${EXE}
-      DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME djpeg${EXE})
-    install(PROGRAMS ${DIR}/jpegtran-static${EXE}
-      DESTINATION ${CMAKE_INSTALL_BINDIR} RENAME jpegtran${EXE})
-  endif()
-endif()
+  include(cmakescripts/BuildPackages.cmake)
 
-install(TARGETS rdjpgcom wrjpgcom RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmakescripts/cmake_uninstall.cmake.in"
+    "cmake_uninstall.cmake" IMMEDIATE @ONLY)
 
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.ijg
-  ${CMAKE_CURRENT_SOURCE_DIR}/README.md ${CMAKE_CURRENT_SOURCE_DIR}/example.txt
-  ${CMAKE_CURRENT_SOURCE_DIR}/tjexample.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/libjpeg.txt
-  ${CMAKE_CURRENT_SOURCE_DIR}/structure.txt
-  ${CMAKE_CURRENT_SOURCE_DIR}/usage.txt ${CMAKE_CURRENT_SOURCE_DIR}/wizard.txt
-  ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
-if(WITH_JAVA)
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/java/TJExample.java
-    DESTINATION ${CMAKE_INSTALL_DOCDIR})
-endif()
-
-if(UNIX OR MINGW)
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cjpeg.1
-    ${CMAKE_CURRENT_SOURCE_DIR}/djpeg.1 ${CMAKE_CURRENT_SOURCE_DIR}/jpegtran.1
-    ${CMAKE_CURRENT_SOURCE_DIR}/rdjpgcom.1
-    ${CMAKE_CURRENT_SOURCE_DIR}/wrjpgcom.1
-    DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
-endif()
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pkgscripts/libjpeg.pc
-  ${CMAKE_CURRENT_BINARY_DIR}/pkgscripts/libturbojpeg.pc
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/jconfig.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/jerror.h ${CMAKE_CURRENT_SOURCE_DIR}/jmorecfg.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/jpeglib.h
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-include(cmakescripts/BuildPackages.cmake)
-
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmakescripts/cmake_uninstall.cmake.in"
-  "cmake_uninstall.cmake" IMMEDIATE @ONLY)
-
-add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P cmake_uninstall.cmake)
+  add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P cmake_uninstall.cmake)
+endif(JPEG_INSTALL)
